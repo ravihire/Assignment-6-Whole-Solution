@@ -1,0 +1,280 @@
+pl/sql programs
+---------------------------------------------------------------------------------
+01.
+
+set serveroutput on
+declare 
+
+  v_ename varchar2(30);
+  v_dname varchar2(30);
+  
+begin
+
+  select e.first_name,d.department_name into v_ename,v_dname
+	from test_intern_employees e
+	inner join test_intern_departments d on e.department_id = d.department_id
+	where e.employee_id = 
+  (select manager_id from test_intern_employees where employee_id = 2);
+  
+    DBMS_OUTPUT.put_line('Employee name is ' || v_ename);
+    DBMS_OUTPUT.put_line('Department name is ' || v_dname);
+end;
+
+---------------------------------------------------------------------------------
+02.
+
+declare
+
+  v_year NUMBER;
+  v_month VARCHAR2(10);
+  v_total NUMBER;
+  
+  cursor empcursor is
+    select to_char(hire_date,'MONTH'),count(employee_id)
+    from test_intern_employees
+    where  to_char(hire_date,'yyyy') = v_year
+    group by to_char(hire_date,'MONTH');
+      
+begin
+
+    SELECT  to_char(hire_date,'yyyy') into v_year
+    FROM test_intern_employees
+    GROUP BY  to_char(hire_date,'yyyy')
+    HAVING
+    COUNT(employee_id) = (SELECT
+    MAX(COUNT(employee_id))
+    FROM
+    test_intern_employees
+    GROUP BY to_char(hire_date,'yyyy'));
+
+    DBMS_OUTPUT.put_line('Maximum number of employees joined in ' || v_year);
+    
+    open empcursor; -- open cursorname
+    
+    fetch empcursor into v_month,v_total; -- fetch the next row in the active set
+    
+    WHILE empcursor%FOUND LOOP
+      dbms_output.put_line('Month : '|| v_month || ' Total joined :  '|| v_total);
+      FETCH empcursor INTO v_month,v_total;
+    end loop;
+    close empcursor; -- close cursorname
+    
+end;
+
+---------------------------------------------------------------------------------
+
+03.
+
+
+declare
+
+  v_salary NUMBER;
+  v_totalrecord NUMBER DEFAULT 0;
+  
+  cursor emprecord is
+  select salary from TEST_INTERN_EMPLOYEES where FIRST_NAME = 'Jeo' order by salary desc;
+begin
+
+  open emprecord;
+
+    FETCH emprecord into v_salary;
+
+    while emprecord%FOUND loop
+      v_totalrecord := v_totalrecord + 1;
+      FETCH emprecord into v_salary;
+    end loop;
+    
+    IF v_totalrecord = 0 then
+      
+      select avg(salary) into v_salary from TEST_INTERN_EMPLOYEES;
+      update TEST_INTERN_EMPLOYEES 
+      set salary = v_salary
+      where EMPLOYEE_ID = 130;
+    else
+      update TEST_INTERN_EMPLOYEES 
+      set salary = v_salary
+      where EMPLOYEE_ID = 130;
+      
+    end if;
+    DBMS_OUTPUT.put_line('Successfully updated salary of employee id 130.');
+    DBMS_OUTPUT.PUT_LINE('Updated salary is ' || v_salary);
+  close emprecord;
+  
+end;
+
+---------------------------------------------------------------------------------
+
+04.
+
+declare
+
+    v_jobTitle VARCHAR2(50);
+    v_empName VARCHAR2(30);
+    
+    cursor emprecord is 
+    select j.job_title,e.FIRST_NAME
+    from TEST_INTERN_EMPLOYEES e 
+    inner join  TEST_INTERN_JOB_HISTORY jh on jh.EMPLOYEE_ID = e.EMPLOYEE_ID
+    and jh.JOB_ID = e.JOB_ID
+    inner join TEST_INTERN_JOBS j on j.JOB_ID = jh.JOB_ID
+    where jh.START_DATE = e.HIRE_DATE;
+    
+begin
+  
+  open emprecord;
+    fetch emprecord into v_jobTitle,v_empName;
+    
+    while emprecord%FOUND loop
+       DBMS_OUTPUT.put_line('Job Title : ' || v_jobTitle);
+       DBMS_OUTPUT.put_line('Employee Name : ' || v_empName);
+       DBMS_OUTPUT.put_line('----------------------');
+       fetch emprecord into v_jobTitle,v_empName;
+    end loop;
+  close emprecord;
+  exception
+  when invalid_cursor then
+  dbms_output.put_line('Invalid Cursor found');
+end;
+
+
+---------------------------------------------------------------------------------
+
+
+05.
+
+CREATE OR REPLACE TRIGGER trg_before_emp_insert
+BEFORE INSERT OR UPDATE OR DELETE
+  on TEST_INTERN_REGIONS
+  FOR EACH ROW
+
+declare
+    v_getdate TIMESTAMP;
+    v_starttime varchar2(50);
+    v_endtime varchar2(50);
+    v_sysdate varchar2(50);
+begin
+
+    SELECT CURRENT_TIMESTAMP into v_getdate FROM DUAL;
+    
+    v_starttime := CONCAT(to_char(sysdate,'dd-mm-yyyy'),' 06:00:00');
+    v_endtime := CONCAT(to_char(sysdate,'dd-mm-yyyy'),' 22:00:00');
+    v_sysdate := TO_CHAR(v_getdate,'dd-mm-yyyy hh24:mi:ss');
+    
+    if to_date(v_sysdate,'dd-mm-yyyy hh24:mi:ss') < to_date(v_starttime,'dd-mm-yyyy hh24:mi:ss') 
+      or to_date(v_sysdate,'dd-mm-yyyy hh24:mi:ss') > to_date(v_endtime,'dd-mm-yyyy hh24:mi:ss') then
+    
+      RAISE_APPLICATION_ERROR(-20000,'Not allowed to do any operation before 6 AM and after 10 PM.');
+      
+    end if;
+end;
+
+
+---------------------------------------------------------------------------------
+
+
+06.
+
+create or replace trigger trg_before_emp_updates
+after update of job_id on TEST_INTERN_EMPLOYEES 
+FOR EACH ROW
+
+declare
+    startdate date;
+    cursor jobhistory is
+    select END_DATE from TEST_INTERN_JOB_HISTORY where EMPLOYEE_ID = 1;    
+begin
+  
+    open jobhistory;
+        
+        IF jobhistory%NOTFOUND THEN
+            select hire_date into startdate from TEST_INTERN_EMPLOYEES where EMPLOYEE_ID = 1;
+        else
+            while jobhistory%FOUND loop
+             FETCH jobhistory into startdate;
+            end loop;
+            startdate := startdate + 1;
+        END IF;
+    close jobhistory;
+    
+    insert into TEST_INTERN_JOB_HISTORY values(:OLD.employee_id,startdate,sysdate,:OLD.job_id,:OLD.department_id);
+end;
+
+---------------------------------------------------------------------------------
+
+
+07.
+
+-> It create a cursor for fetching the data from dual table.
+
+SELECT dummy FROM DUAL  WHERE 1 = 2;
+
+where as, 1 = 2 is represents FALSE.
+
+-> NVL replace null (returned as a blank) with a string in the results of a query. If expr1 is null, then NVL returns expr2. If expr1 is not null, then NVL returns expr1.
+
+-> 'Tab' gives you information about tables, views, and synonyms that you own .
+
+-> Bulk Collect clause is used to return multiple values to collection variables. 
+When data involved is very large, we can use Bulk Collect clause to fetch the data into local PL/SQL variables faster without looping through one record at a time. 
+
+-> It used exception NO_DATA_FOUND. If it does not found any data then display "NDF".
+
+
+
+---------------------------------------------------------------------------------
+
+08.
+
+If we change or delete the table then it is allows to change or delete.
+But when we execute the procedure then it will gives error.
+
+---------------------------------------------------------------------------------
+09.
+
+   9.1
+    It gives error. For fetching data from a cursor then first we need to open cursor.
+    After fetch..[cursor_name]..into...[variable] statement is used.
+    It fetch course_no from the table and update cost value one by one using loop.
+
+  9.2
+    If we update 100 rows but row 97 throws an error, none of the rows are updated.
+    After end of the loop we could be placed a COMMIT.
+
+  9.3  
+    SELECT text FROM all_source WHERE name='Discount';
+
+---------------------------------------------------------------------------------
+10.
+
+create or replace procedure pro_check_weekend
+IS
+  v_username varchar2(30);
+  v_valid NUMBER;
+  v_invalid NUMBER;
+BEGIN
+  
+  IF to_char(sysdate,'DY') IN ('SAT','SUN') THEN
+      DBMS_OUTPUT.PUT_LINE('Today is Weekend.');
+  ELSE
+      DBMS_OUTPUT.PUT_LINE('Today is Weekday.');
+  END IF;
+  
+  select user into v_username from dual;
+  
+  select count(OBJECT_NAME) into v_valid
+  from dba_objects
+  where
+  status = 'VALID' and object_type ='PROCEDURE';
+  
+  select count(OBJECT_NAME) into v_invalid
+  from dba_objects
+  where
+  status = 'INVALID' and object_type ='PROCEDURE';
+  
+  DBMS_OUTPUT.PUT_LINE('Username is '|| v_username);
+  DBMS_OUTPUT.PUT_LINE('Current time is '|| TO_CHAR(CURRENT_TIMESTAMP,'hh24:mi:ss'));
+  DBMS_OUTPUT.PUT_LINE('Total valid procedure : '|| v_valid);
+  DBMS_OUTPUT.PUT_LINE('Total invalid procedure : '|| v_invalid);
+  
+end;
+
